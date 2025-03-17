@@ -1,18 +1,24 @@
 "use client"
 
-import { useState } from "react"
+// export const dynamic = "force-dynamic";
+import dynamic from "next/dynamic";
+
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { noiseData } from "../data/noiseData"
-import NoiseChart from "@/components/NoiseChart"
-import NoiseMap from "@/components/NoiseMap"
-import html2canvas from "html2canvas"
-import jsPDF from "jspdf"
+// import NoiseChart from "@/components/NoiseChart"
+// import NoiseMap from "@/components/NoiseMap"
+// import html2canvas from "html2canvas"
+// import jsPDF from "jspdf"
 
 export default function ReportsPage() {
+  const NoiseChart = dynamic(() => import("@/components/NoiseChart"), { ssr: false });
+  const NoiseMap = dynamic(() => import("@/components/NoiseMap"), { ssr: false });
+
   const [reportData, setReportData] = useState({
     location: "",
     startDate: "",
@@ -46,26 +52,44 @@ export default function ReportsPage() {
     filteredData.reduce((acc, item) => acc + (item.morning + item.afternoon + item.evening) / 3, 0) /
     filteredData.length
 
-  const downloadPDF = async () => {
-    const report = document.getElementById("report-content")
-    if (!report) return
+    const downloadPDF = async () => {
+      const html2canvas = (await import("html2canvas")).default;
+      const jsPDF = (await import("jspdf")).default;
+    
+      const report = document.getElementById("report-content")
+      if (!report) return
+    
+      const canvas = await html2canvas(report)
+      const imgData = canvas.toDataURL("image/png")
+      const pdf = new jsPDF("p", "mm", "a4")
+      const pdfWidth = pdf.internal.pageSize.getWidth()
+      const pdfHeight = pdf.internal.pageSize.getHeight()
+      const imgWidth = canvas.width
+      const imgHeight = canvas.height
+      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight)
+      const imgX = (pdfWidth - imgWidth * ratio) / 2
+      const imgY = 30
+    
+      pdf.addImage(imgData, "PNG", imgX, imgY, imgWidth * ratio, imgHeight * ratio)
+      pdf.save(`noise-pollution-report-${reportData.location}.pdf`)
+    }
+    
 
-    const canvas = await html2canvas(report)
-    const imgData = canvas.toDataURL("image/png")
-    const pdf = new jsPDF("p", "mm", "a4")
-    const pdfWidth = pdf.internal.pageSize.getWidth()
-    const pdfHeight = pdf.internal.pageSize.getHeight()
-    const imgWidth = canvas.width
-    const imgHeight = canvas.height
-    const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight)
-    const imgX = (pdfWidth - imgWidth * ratio) / 2
-    const imgY = 30
+  const [isClient, setIsClient] = useState(false);
 
-    pdf.addImage(imgData, "PNG", imgX, imgY, imgWidth * ratio, imgHeight * ratio)
-    pdf.save(`noise-pollution-report-${reportData.location}.pdf`)
-  }
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  const handlePrint = () => {
+    if (typeof window !== "undefined") {
+      window.print();
+    }
+  };
+
 
   return (
+    isClient && (
     <div className="space-y-8">
       <div className="bg-industrial bg-cover bg-center bg-overlay relative p-8 rounded-lg">
         <div className="relative z-10">
@@ -182,7 +206,7 @@ export default function ReportsPage() {
             </section>
           </div>
           <div className="flex justify-end gap-4">
-            <Button onClick={() => window.print()} className="print:hidden">
+            <Button onClick={handlePrint} className="print:hidden">
               Print Report
             </Button>
             <Button onClick={downloadPDF} className="print:hidden">
@@ -192,6 +216,7 @@ export default function ReportsPage() {
         </div>
       )}
     </div>
+    )
   )
 }
 
